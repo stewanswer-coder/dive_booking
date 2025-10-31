@@ -1,17 +1,17 @@
 from flask import Flask, render_template, request
 from flask_sqlalchemy import SQLAlchemy
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import (
-    Mail, Email, Content, TrackingSettings,
-    ClickTracking, OpenTracking, SubscriptionTracking, Category
-)
 import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bookings.db'
 db = SQLAlchemy(app)
 
+# -----------------------------
 # 資料表定義
+# -----------------------------
 class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50))
@@ -34,6 +34,9 @@ class Booking(db.Model):
 with app.app_context():
     db.create_all()
 
+# -----------------------------
+# 固定選項
+# -----------------------------
 TIME_SLOTS = ["上午 08:00", "下午 13:00"]
 PACKAGES = [
     "體驗潛水 (Try Diving)",
@@ -42,36 +45,78 @@ PACKAGES = [
     "PADI Rescue Diver",
     "Fun Dive 小隊 (持證)",
     "拍照小隊 (持證 + 自備相機)",
-    "PADI 潛水課程"
+    "PADI 潛水課程",
 ]
 COACHES = ["阿行教練"]
-
 COACH_EMAIL = {"阿行教練": "comcomdive@gmail.com"}
 
-@app.route('/')
+# -----------------------------
+# Gmail SMTP 設定（用環境變數）
+# Render → Environment → 新增：
+# GMAIL_USER, GMAIL_APP_PASSWORD
+# -----------------------------
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+GMAIL_USER = os.environ.get("GMAIL_USER")          # 例如 comcomdive@gmail.com
+GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
+
+
+def send_email_via_gmail(to_addr: str, subject: str, html_body: str, text_body: str = "", reply_to: str | None = None):
+    """
+    使用 Gmail SMTP 寄信（HTML + 文字版）。需設定 GMAIL_USER 與 GMAIL_APP_PASSWORD。
+    """
+    if not (GMAIL_USER and GMAIL_APP_PASSWORD):
+        print("[GMAIL SMTP] 缺少 GMAIL_USER 或 GMAIL_APP_PASSWORD，略過寄信")
+        return
+
+    msg = MIMEMultipart("alternative")
+    msg["From"] = f"來來潛水工作室 <{GMAIL_USER}>"
+    msg["To"] = to_addr
+    msg["Subject"] = subject
+    if reply_to:
+        msg["Reply-To"] = reply_to
+
+    if text_body:
+        msg.attach(MIMEText(text_body, "plain", "utf-8"))
+    if html_body:
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_USER, [to_addr], msg.as_string())
+        print(f"[GMAIL SMTP] 寄信成功 → {to_addr}")
+    except Exception as e:
+        print("[GMAIL SMTP] 寄送失敗：", e)
+
+
+@app.route("/")
 def index():
-    return render_template('index.html', time_slots=TIME_SLOTS, packages=PACKAGES, coaches=COACHES)
+    return render_template("index.html", time_slots=TIME_SLOTS, packages=PACKAGES, coaches=COACHES)
 
-@app.route('/book', methods=['POST'])
+
+@app.route("/book", methods=["POST"])
 def book():
-    print("[DEBUG] form data:", dict(request.form))  # 可觀察是否有 line_id
-    name = request.form['name']
-    phone = request.form['phone']
-    line_id = request.form.get('line_id', '').strip()
-    email = request.form['email']
-    coach = request.form['coach']
-    dive_date = request.form['dive_date']
-    time_slot = request.form['time_slot']
-    package = request.form['package']
-    divers_count = int(request.form['divers_count'])
-    need_equipment = request.form['need_equipment']
-    equipment_items = ", ".join(request.form.getlist('equipment_items'))
-    height = request.form.get('height', '').strip()
-    weight = request.form.get('weight', '').strip()
-    shoe_size = request.form.get('shoe_size', '').strip()
-    notes = request.form.get('notes', '').strip()
+    # 讀取表單
+    print("[DEBUG] form data:", dict(request.form))  # 方便排錯；穩定後可移除
+    name = request.form["name"]
+    phone = request.form["phone"]
+    line_id = request.form.get("line_id", "").strip()
+    email = request.form["email"]
+    coach = request.form["coach"]
+    dive_date = request.form["dive_date"]
+    time_slot = request.form["time_slot"]
+    package = request.form["package"]
+    divers_count = int(request.form["divers_count"])
+    need_equipment = request.form["need_equipment"]
+    equipment_items = ", ".join(request.form.getlist("equipment_items"))
+    height = request.form.get("height", "").strip()
+    weight = request.form.get("weight", "").strip()
+    shoe_size = request.form.get("shoe_size", "").strip()
+    notes = request.form.get("notes", "").strip()
 
-
+    # 寫入 DB
     booking = Booking(
         name=name, phone=phone, line_id=line_id, email=email, coach=coach,
         dive_date=dive_date, time_slot=time_slot, package=package,
@@ -82,17 +127,12 @@ def book():
     db.session.add(booking)
     db.session.commit()
 
-    sg_api_key = os.environ.get('SENDGRID_API_KEY')
-    if not sg_api_key:
-        print("[SENDGRID] 沒有設定 API KEY，跳過寄信")
-        return render_template('success.html', name=name)
+    # Reply-To 設為教練信箱（回覆時會回到教練）
+    reply_to = COACH_EMAIL.get(coach, GMAIL_USER)
 
-    sg = SendGridAPIClient(sg_api_key)
-    from_email = Email('comcomdive@gmail.com', name='來來潛水工作室')
-    reply_to = Email('comcomdive@gmail.com', name='阿行教練')
-
-    # ---------- 教練信 ----------
-    coach_to = COACH_EMAIL.get(coach, 'comcomdive@gmail.com')
+    # ---------- 給教練 ----------
+    coach_to = COACH_EMAIL.get(coach, GMAIL_USER)
+    coach_subject = f"你的潛水預約新報名：{dive_date}（{time_slot}）"
     coach_html = f"""
     <html><body>
       <h3>潛水預約通知</h3>
@@ -110,20 +150,10 @@ def book():
       <p><b>身高：</b>{height} cm　<b>體重：</b>{weight} kg　<b>鞋號：</b>{shoe_size}</p>
       <p><b>備註：</b>{notes or '（無）'}</p>
       <hr>
-      <p style="font-size:12px;color:#666;">
-        來來潛水工作室｜新北市三重區重新路三段138號
-      </p>
+      <p style="font-size:12px;color:#666;">來來潛水工作室｜新北市三重區重新路三段138號</p>
     </body></html>
     """
-
-    try:
-        coach_msg = Mail(
-            from_email=from_email,
-            to_emails=coach_to,
-            subject=f"你的潛水預約新報名：{dive_date}（{time_slot}）",
-            html_content=coach_html
-        )
-        coach_msg.add_content(Content("text/plain", f"""潛水預約通知
+    coach_text = f"""潛水預約通知
 姓名：{name}
 電話：{phone}
 LINE ID：{line_id or '（未填）'}
@@ -135,25 +165,13 @@ Email：{email}
 人數：{divers_count}
 租裝備：{need_equipment}
 裝備項目：{equipment_items if equipment_items else '無'}
-身高：{height} cm 體重：{weight} kg 鞋號：{shoe_size}
+身高：{height} cm  體重：{weight} kg  鞋號：{shoe_size}
 備註：{notes or '（無）'}
-"""))
-        coach_msg.reply_to = reply_to
+"""
+    send_email_via_gmail(coach_to, coach_subject, coach_html, coach_text, reply_to=reply_to)
 
-        # 關閉追蹤 + 設為交易型郵件
-        coach_msg.category = Category("booking-transactional")
-        ts = TrackingSettings()
-        ts.click_tracking = ClickTracking(False, False)
-        ts.open_tracking = OpenTracking(False)
-        ts.subscription_tracking = SubscriptionTracking(False)
-        coach_msg.tracking_settings = ts
-
-        resp = sg.send(coach_msg)
-        print("[SENDGRID] 教練信狀態：", resp.status_code)
-    except Exception as e:
-        print("[SENDGRID] 教練信寄送失敗：", e)
-
-    # ---------- 學員信 ----------
+    # ---------- 給學員 ----------
+    customer_subject = f"你的潛水預約已建立：{dive_date}（{time_slot}）"
     customer_html = f"""
     <html><body>
       <h3>預約已建立</h3>
@@ -165,46 +183,26 @@ Email：{email}
         <li>方案：{package}</li>
         <li>人數：{divers_count}</li>
         <li>租裝備：{need_equipment}</li>
+        <li>LINE ID：{line_id or '（未填）'}</li>
       </ul>
       <p>若需更改或取消，請直接回覆此信件與我們聯繫。</p>
       <hr>
-      <p style="font-size:12px;color:#666;">
-        來來潛水工作室｜新北市三重區重新路三段138號
-      </p>
+      <p style="font-size:12px;color:#666;">來來潛水工作室｜新北市三重區重新路三段138號</p>
     </body></html>
     """
-
-    try:
-        customer_msg = Mail(
-            from_email=from_email,
-            to_emails=email,
-            subject=f"你的潛水預約已建立：{dive_date}（{time_slot}）",
-            html_content=customer_html
-        )
-        customer_msg.add_content(Content("text/plain", f"""預約已建立
+    customer_text = f"""預約已建立
 教練：{coach}
 日期：{dive_date}
 時段：{time_slot}
 方案：{package}
 人數：{divers_count}
 租裝備：{need_equipment}
-"""))
-        customer_msg.reply_to = reply_to
+LINE ID：{line_id or '（未填）'}
+"""
+    send_email_via_gmail(email, customer_subject, customer_html, customer_text, reply_to=reply_to)
 
-        # 關閉追蹤 + 設為交易型郵件
-        customer_msg.category = Category("booking-transactional")
-        ts2 = TrackingSettings()
-        ts2.click_tracking = ClickTracking(False, False)
-        ts2.open_tracking = OpenTracking(False)
-        ts2.subscription_tracking = SubscriptionTracking(False)
-        customer_msg.tracking_settings = ts2
+    return render_template("success.html", name=name)
 
-        resp2 = sg.send(customer_msg)
-        print("[SENDGRID] 客戶信狀態：", resp2.status_code)
-    except Exception as e:
-        print("[SENDGRID] 客戶信寄送失敗：", e)
 
-    return render_template('success.html', name=name)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True, port=5000)
