@@ -15,38 +15,37 @@
   <form action="/book" method="post">
 
     <!-- 基本資料 -->
-    <label>姓名：</label>
-    <input name="name" required><br>
+    <label for="name">姓名：</label>
+    <input id="name" name="name" required><br>
 
-    <label>電話：</label>
-    <input name="phone" required><br>
+    <label for="phone">電話：</label>
+    <input id="phone" name="phone" required><br>
 
-    <label>LINE ID：</label>
-    <input name="LINE ID" required><br>
+    <label for="line_id">LINE ID：</label>
+    <input id="line_id" name="line_id" placeholder="例如: @abcd1234"><br>
 
+    <label for="email">Email：</label>
+    <input id="email" name="email" type="email" required><br>
 
-    <label>Email：</label>
-    <input name="email" type="email" required><br>
-
-    <label>教練：</label>
-    <select name="coach" required>
+    <label for="coach">教練：</label>
+    <select id="coach" name="coach" required>
       <option value="阿行教練">阿行教練</option>
     </select><br>
 
     <!-- 日期與時段 -->
-    <label>日期：</label>
-    <input type="date" name="dive_date" required><br>
+    <label for="dive_date">日期：</label>
+    <input id="dive_date" type="date" name="dive_date" required><br>
 
-    <label>時段：</label>
-    <select name="time_slot" required>
+    <label for="time_slot">時段：</label>
+    <select id="time_slot" name="time_slot" required>
       {% for s in time_slots %}
         <option value="{{s}}">{{s}}</option>
       {% endfor %}
     </select><br>
 
     <!-- 潛水方案 -->
-    <label>方案：</label>
-    <select name="package" required>
+    <label for="package">方案：</label>
+    <select id="package" name="package" required>
       <option value="體驗潛水 (Try Diving)">體驗潛水 (Try Diving)</option>
       <option value="PADI Open Water Diver">PADI Open Water Diver</option>
       <option value="PADI Advanced Open Water Diver">PADI Advanced Open Water Diver</option>
@@ -57,15 +56,15 @@
     </select><br>
 
     <!-- 人數 -->
-    <label>人數：</label>
-    <input name="divers_count" type="number" min="1" value="1" required><br>
+    <label for="divers_count">人數：</label>
+    <input id="divers_count" name="divers_count" type="number" min="1" value="1" required><br>
 
     <!-- 裝備需求 -->
     <hr>
     <h3>裝備租借</h3>
 
-    <label>是否需要租裝備：</label>
-    <select name="need_equipment" required>
+    <label for="need_equipment">是否需要租裝備：</label>
+    <select id="need_equipment" name="need_equipment" required>
       <option value="Y">是</option>
       <option value="N">否</option>
     </select><br>
@@ -80,20 +79,18 @@
       <label><input type="checkbox" name="equipment_items" value="蛙鞋"> 蛙鞋</label><br>
     </div>
 
-    <label>身高 (cm)：</label>
-    <input name="height" type="number" min="100" max="250"><br>
+    <label for="height">身高 (cm)：</label>
+    <input id="height" name="height" type="number" min="100" max="250"><br>
 
-    <label>體重 (kg)：</label>
-    <input name="weight" type="number" min="30" max="150"><br>
+    <label for="weight">體重 (kg)：</label>
+    <input id="weight" name="weight" type="number" min="30" max="150"><br>
 
-    <label>鞋號 (cm)：</label>
-    <input name="shoe_size" type="number" min="22" max="30"><br>
+    <label for="shoe_size">鞋號 (cm)：</label>
+    <input id="shoe_size" name="shoe_size" type="number" min="22" max="30"><br>
 
-    <!-- 備註 -->
-    <label>備註：</label>
-    <textarea name="notes" rows="3" cols="28"></textarea><br>
+    <label for="notes">備註：</label>
+    <textarea id="notes" name="notes" rows="3" cols="28"></textarea><br>
 
-    <!-- 送出 -->
     <button type="submit">送出預約</button>
   </form>
 
