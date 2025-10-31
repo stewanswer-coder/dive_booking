@@ -54,9 +54,10 @@ def index():
 
 @app.route('/book', methods=['POST'])
 def book():
+    print("[DEBUG] form data:", dict(request.form))  # 可觀察是否有 line_id
     name = request.form['name']
     phone = request.form['phone']
-    line_id = request.form.get('line_id', '')
+    line_id = request.form.get('line_id', '').strip()
     email = request.form['email']
     coach = request.form['coach']
     dive_date = request.form['dive_date']
@@ -65,10 +66,11 @@ def book():
     divers_count = int(request.form['divers_count'])
     need_equipment = request.form['need_equipment']
     equipment_items = ", ".join(request.form.getlist('equipment_items'))
-    height = request.form.get('height', '')
-    weight = request.form.get('weight', '')
-    shoe_size = request.form.get('shoe_size', '')
-    notes = request.form.get('notes', '')
+    height = request.form.get('height', '').strip()
+    weight = request.form.get('weight', '').strip()
+    shoe_size = request.form.get('shoe_size', '').strip()
+    notes = request.form.get('notes', '').strip()
+
 
     booking = Booking(
         name=name, phone=phone, line_id=line_id, email=email, coach=coach,
