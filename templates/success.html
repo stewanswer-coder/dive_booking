@@ -1,14 +1,16 @@
 <!doctype html>
 <html lang="zh-Hant">
-<head><meta charset="utf-8" /><title>預約成功</title></head>
-<body><h1>✅ 預約成功！</h1>
-<p>我們已收到你的預約，以下是資訊：</p>
-<ul>
-<li>日期：{{ b.dive_date }}</li>
-<li>時段：{{ b.time_slot }}</li>
-<li>方案：{{ b.package }}</li>
-<li>人數：{{ b.divers_count }}</li>
-<li>姓名：{{ b.name }}</li>
-</ul>
-<a href="/">回首頁</a>
-</body></html>
+<head><meta charset="utf-8"><title>預約成功</title></head>
+<body>
+  <h1>✅ 預約成功！</h1>
+  <p>我們已發送確認信到：<b>{{b.email}}</b>（若你有設定 SMTP）。</p>
+  <ul>
+    <li>日期：{{b.dive_date}}</li>
+    <li>時段：{{b.time_slot}}</li>
+    <li>方案：{{b.package}}</li>
+    <li>人數：{{b.divers_count}}</li>
+    <li>姓名：{{b.name}}</li>
+  </ul>
+  <p><a href="/">回首頁</a></p>
+</body>
+</html>
