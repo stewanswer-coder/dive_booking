@@ -32,7 +32,7 @@ with app.app_context():
     db.create_all()
 
 # 固定選項
-TIME_SLOTS = ["上午 08:00", "中午 11:00", "下午 14:00"]
+TIME_SLOTS = ["上午 08:00", "下午 13:00"]
 PACKAGES = [
     "體驗潛水 (Try Diving)",
     "PADI Open Water Diver",
