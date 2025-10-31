@@ -4,27 +4,54 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>潛水預約</title>
-  <style>label{display:inline-block;width:80px;margin-top:6px} input,select,textarea{margin-top:6px}</style>
+  <style>
+    label { display:inline-block; width:80px; margin-top:6px }
+    input, select, textarea { margin-top:6px }
+  </style>
 </head>
 <body>
-  <h1>潛水預約</h1>
+  <h1>潛水預約表單</h1>
   <form action="/book" method="post">
-    <label>姓名：</label><input name="name" required><br>
-    <label>電話：</label><input name="phone" required><br>
-    <label>Email：</label><input name="email" type="email" required><br>
-    <label>日期：</label><input type="date" name="dive_date" required><br>
+    <label>姓名：</label>
+    <input name="name" required><br>
+
+    <label>電話：</label>
+    <input name="phone" required><br>
+
+    <label>Email：</label>
+    <input name="email" type="email" required><br>
+
+    <label>日期：</label>
+    <input type="date" name="dive_date" required><br>
+
     <label>時段：</label>
-    <select name="time_slot">
-      {% for s in time_slots %}<option value="{{s}}">{{s}}</option>{% endfor %}
+    <select name="time_slot" required>
+      {% for s in time_slots %}
+        <option value="{{s}}">{{s}}</option>
+      {% endfor %}
     </select><br>
-    <label>方案：</label>
-    <select name="package">
-      {% for p in packages %}<option value="{{p}}">{{p}}</option>{% endfor %}
+
+    <label for="package"><b>方案：</b></label>
+    <select id="package" name="package" required>
+      <option value="體驗潛水 (Try Diving)">體驗潛水 (Try Diving)</option>
+      <option value="PADI Open Water Diver">PADI Open Water Diver</option>
+      <option value="PADI Advanced Open Water Diver">PADI Advanced Open Water Diver</option>
+      <option value="PADI Rescue Diver">PADI Rescue Diver</option>
+      <option value="Fun Dive 小隊 (持證)">Fun Dive 小隊 (持證)</option>
+      <option value="拍照小隊 (持證 + 自備相機)">拍照小隊 (持證 + 自備相機)</option>
     </select><br>
-    <label>人數：</label><input name="divers_count" value="1" required><br>
-    <label>備註：</label><textarea name="notes" rows="3" cols="28"></textarea><br>
-    <button type="submit">送出</button>
+
+    <label>人數：</label>
+    <input name="divers_count" type="number" min="1" value="1" required><br>
+
+    <label>備註：</label>
+    <textarea name="notes" rows="3" cols="28"></textarea><br>
+
+    <button type="submit">送出預約</button>
   </form>
-  {% if message %}<p style="color:#b00">{{ message }}</p>{% endif %}
+
+  {% if message %}
+    <p style="color:#b00">{{ message }}</p>
+  {% endif %}
 </body>
 </html>
