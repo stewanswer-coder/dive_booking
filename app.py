@@ -28,6 +28,19 @@ class Booking(db.Model):
     shoe_size = db.Column(db.String(10))
     notes = db.Column(db.String(500))
 
+# === 固定選項（給首頁下拉用） ===
+TIME_SLOTS = ["上午 08:00", "下午 13:00"]
+PACKAGES = [
+    "體驗潛水 (Try Diving)",
+    "PADI Open Water Diver",
+    "PADI Advanced Open Water Diver",
+    "PADI Rescue Diver",
+    "Fun Dive 小隊 (持證)",
+    "拍照小隊 (持證 + 自備相機)",
+    "PADI 專長潛水課程",
+]
+COACHES = ["阿行教練"]
+
 # === 郵件設定 ===
 GMAIL_USER = os.getenv("GMAIL_USER")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
@@ -58,7 +71,6 @@ def send_email_via_gmail(to_email, subject, html_content, text_content, reply_to
         print(f"[MAIL ERROR] 無法寄給 {to_email}：{e}")
         traceback.print_exc()
 
-
 # === 預約表單提交 ===
 @app.route("/book", methods=["POST"])
 def book():
@@ -73,7 +85,7 @@ def book():
         phone = request.form.get("phone", "").strip()
         line_id = request.form.get("line_id", "").strip()
         email = request.form.get("email", "").strip()
-        coach = request.form.get("coach", "阿行教練").strip()
+        coach = request.form.get("coach", COACHES[0]).strip()
         dive_date = request.form.get("dive_date", "").strip()
         time_slot = request.form.get("time_slot", "").strip()
         package = request.form.get("package", "").strip()
@@ -102,7 +114,7 @@ def book():
             traceback.print_exc()
             db.session.rollback()
 
-        # ---- 寄信階段 ----
+        # ---- 寄信階段（失敗不會中斷流程）----
         try:
             reply_to = COACH_EMAIL.get(coach, GMAIL_USER)
             coach_to = COACH_EMAIL.get(coach, GMAIL_USER)
@@ -160,7 +172,6 @@ Email：{email}
 教練：{coach}  日期：{dive_date}  時段：{time_slot}
 方案：{package}  人數：{divers_count}  租裝備：{need_equipment}
 LINE ID：{line_id or '（未填）'}"""
-
             send_email_via_gmail(email, customer_subject, customer_html, customer_text, reply_to=reply_to)
 
         except Exception:
@@ -187,12 +198,15 @@ LINE ID：{line_id or '（未填）'}"""
         <a href="/">回首頁</a>
         """)
 
-
-# === 首頁（假設有 index.html） ===
+# === 首頁（把固定選項傳給模板） ===
 @app.route("/")
 def index():
-    return render_template("index.html")
-
+    return render_template(
+        "index.html",
+        time_slots=TIME_SLOTS,
+        packages=PACKAGES,
+        coaches=COACHES,
+    )
 
 # === 啟動伺服器 ===
 if __name__ == "__main__":
