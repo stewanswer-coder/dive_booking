@@ -1,16 +1,21 @@
 <!doctype html>
 <html lang="zh-Hant">
-<head><meta charset="utf-8"><title>預約成功</title></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>預約完成</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align:center; padding-top:60px; }
+    h1 { color: #0077cc; }
+    p { font-size: 18px; }
+    a { text-decoration:none; color:white; background:#0077cc; padding:8px 16px; border-radius:5px; }
+  </style>
+</head>
 <body>
-  <h1>✅ 預約成功！</h1>
-  <p>我們已發送確認信到：<b>{{b.email}}</b>（若你有設定 SMTP）。</p>
-  <ul>
-    <li>日期：{{b.dive_date}}</li>
-    <li>時段：{{b.time_slot}}</li>
-    <li>方案：{{b.package}}</li>
-    <li>人數：{{b.divers_count}}</li>
-    <li>姓名：{{b.name}}</li>
-  </ul>
-  <p><a href="/">回首頁</a></p>
+  <h1>✅ 預約完成！</h1>
+  <p>感謝 <b>{{ name }}</b> 的預約，我們已寄出確認信至您的 Email。</p>
+  <p>教練會盡快與您聯繫，祝您潛水愉快！</p>
+  <br>
+  <a href="/">回到首頁</a>
 </body>
 </html>
