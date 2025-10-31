@@ -126,6 +126,14 @@ def book():
         print("[SENDGRID] 教練信狀態：", resp.status_code)
     except Exception as e:
         print("[SENDGRID] 教練信寄送失敗：", e)
+        try:
+            print("[SENDGRID][ERROR] status:", e.status_code)
+        except Exception:
+            pass
+        try:
+            print("[SENDGRID][ERROR] body:", e.body)
+        except Exception:
+            print("[SENDGRID][ERROR] raw:", e)
 
     # --- 給學員 ---
     customer_html = f"""
@@ -161,6 +169,14 @@ def book():
         print("[SENDGRID] 客戶信狀態：", resp2.status_code)
     except Exception as e:
         print("[SENDGRID] 客戶信寄送失敗：", e)
+        try:
+            print("[SENDGRID][ERROR] status:", e.status_code)
+        except Exception:
+            pass
+        try:
+            print("[SENDGRID][ERROR] body:", e.body)
+        except Exception:
+            print("[SENDGRID][ERROR] raw:", e)
 
     return render_template('success.html', name=name)
 
