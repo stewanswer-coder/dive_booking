@@ -5,13 +5,16 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>潛水預約</title>
   <style>
-    label { display:inline-block; width:80px; margin-top:6px }
+    label { display:inline-block; width:110px; margin-top:6px; vertical-align: top; }
     input, select, textarea { margin-top:6px }
+    .equip-list { margin-left: 110px; }
   </style>
 </head>
 <body>
   <h1>潛水預約表單</h1>
   <form action="/book" method="post">
+
+    <!-- 基本資料 -->
     <label>姓名：</label>
     <input name="name" required><br>
 
@@ -21,6 +24,12 @@
     <label>Email：</label>
     <input name="email" type="email" required><br>
 
+    <label>教練：</label>
+    <select name="coach" required>
+      <option value="阿行教練">阿行教練</option>
+    </select><br>
+
+    <!-- 日期與時段 -->
     <label>日期：</label>
     <input type="date" name="dive_date" required><br>
 
@@ -31,22 +40,56 @@
       {% endfor %}
     </select><br>
 
-    <label for="package"><b>方案：</b></label>
-    <select id="package" name="package" required>
+    <!-- 潛水方案 -->
+    <label>方案：</label>
+    <select name="package" required>
       <option value="體驗潛水 (Try Diving)">體驗潛水 (Try Diving)</option>
       <option value="PADI Open Water Diver">PADI Open Water Diver</option>
       <option value="PADI Advanced Open Water Diver">PADI Advanced Open Water Diver</option>
       <option value="PADI Rescue Diver">PADI Rescue Diver</option>
       <option value="Fun Dive 小隊 (持證)">Fun Dive 小隊 (持證)</option>
       <option value="拍照小隊 (持證 + 自備相機)">拍照小隊 (持證 + 自備相機)</option>
+      <option value="PADI 專長潛水課程">PADI 專長潛水課程</option>
     </select><br>
 
+    <!-- 人數 -->
     <label>人數：</label>
     <input name="divers_count" type="number" min="1" value="1" required><br>
 
+    <!-- 裝備需求 -->
+    <hr>
+    <h3>裝備租借</h3>
+
+    <label>是否需要租裝備：</label>
+    <select name="need_equipment" required>
+      <option value="Y">是</option>
+      <option value="N">否</option>
+    </select><br>
+
+    <label>租借裝備項目：</label><br>
+    <div class="equip-list">
+      <label><input type="checkbox" name="equipment_items" value="面鏡"> 面鏡</label><br>
+      <label><input type="checkbox" name="equipment_items" value="調節器"> 調節器</label><br>
+      <label><input type="checkbox" name="equipment_items" value="BCD"> BCD</label><br>
+      <label><input type="checkbox" name="equipment_items" value="防寒衣"> 防寒衣</label><br>
+      <label><input type="checkbox" name="equipment_items" value="套鞋"> 套鞋</label><br>
+      <label><input type="checkbox" name="equipment_items" value="蛙鞋"> 蛙鞋</label><br>
+    </div>
+
+    <label>身高 (cm)：</label>
+    <input name="height" type="number" min="100" max="250"><br>
+
+    <label>體重 (kg)：</label>
+    <input name="weight" type="number" min="30" max="150"><br>
+
+    <label>鞋號 (EU)：</label>
+    <input name="shoe_size" type="number" min="30" max="50"><br>
+
+    <!-- 備註 -->
     <label>備註：</label>
     <textarea name="notes" rows="3" cols="28"></textarea><br>
 
+    <!-- 送出 -->
     <button type="submit">送出預約</button>
   </form>
 
