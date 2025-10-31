@@ -6,7 +6,7 @@ from email.mime.multipart import MIMEMultipart
 
 # === 初始化 Flask 與 DB ===
 app = Flask(__name__, template_folder='templates', static_folder='static')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bookings.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bookings_v2.db'
 db = SQLAlchemy(app)
 
 # === 資料表定義 ===
