@@ -79,12 +79,19 @@ def book():
 
     # --- 寄信通知教練 ---
     try:
-        sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
-        message = Mail(
-            from_email='comcomdive@gmail.com',
-            to_emails='comcomdive@gmail.com',  # 教練信箱
-            subject=f'📥 新的潛水預約通知 ({coach})',
-            html_content=f"""
+       from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, Email
+
+message = Mail(
+    from_email=Email('noreply@sendgrid.net', name='來來潛水工作室'),
+    to_emails=email,
+    subject='潛水預約確認通知',
+    html_content=email_content
+)
+
+# ✅ 新增這行！
+message.reply_to = Email('comcomdive@gmail.com', name='阿行教練')
+
             <h3>潛水預約通知</h3>
             <p><b>姓名：</b>{name}</p>
             <p><b>電話：</b>{phone}</p>
