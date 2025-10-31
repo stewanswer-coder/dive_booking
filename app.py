@@ -13,7 +13,7 @@ class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50))
     phone = db.Column(db.String(50))
-    line_id = db.Column(db.String(50))        # ✅ 新增 LINE ID 欄位
+    line_id = db.Column(db.String(50))
     email = db.Column(db.String(100))
     coach = db.Column(db.String(50))
     dive_date = db.Column(db.String(20))
@@ -28,11 +28,9 @@ class Booking(db.Model):
     notes = db.Column(db.String(300))
     status = db.Column(db.String(20), default="pending")
 
-# 初始化資料庫
 with app.app_context():
     db.create_all()
 
-# 固定選項
 TIME_SLOTS = ["上午 08:00", "下午 13:00"]
 PACKAGES = [
     "體驗潛水 (Try Diving)",
@@ -55,10 +53,9 @@ def index():
 
 @app.route('/book', methods=['POST'])
 def book():
-    # 接收表單資料
     name = request.form['name']
     phone = request.form['phone']
-    line_id = request.form.get('line_id', '')      # ✅ 新增 LINE ID
+    line_id = request.form.get('line_id', '')
     email = request.form['email']
     coach = request.form['coach']
     dive_date = request.form['dive_date']
@@ -72,7 +69,6 @@ def book():
     shoe_size = request.form.get('shoe_size', '')
     notes = request.form.get('notes', '')
 
-    # 寫入資料庫
     booking = Booking(
         name=name, phone=phone, line_id=line_id, email=email, coach=coach,
         dive_date=dive_date, time_slot=time_slot, package=package,
@@ -83,17 +79,17 @@ def book():
     db.session.add(booking)
     db.session.commit()
 
-    # --- SendGrid 寄信 ---
     sg_api_key = os.environ.get('SENDGRID_API_KEY')
     if not sg_api_key:
         print("[SENDGRID] 沒有設定 API KEY，跳過寄信")
         return render_template('success.html', name=name)
 
     sg = SendGridAPIClient(sg_api_key)
-    from_email = Email('noreply@sendgrid.net', name='來來潛水工作室')
+
+    # ✅ 必須與已驗證 Sender 相同
+    from_email = Email('comcomdive@gmail.com', name='來來潛水工作室')
     reply_to = Email('comcomdive@gmail.com', name='阿行教練')
 
-    # --- 給教練 ---
     coach_to = COACH_EMAIL.get(coach, 'comcomdive@gmail.com')
     coach_html = f"""
     <!doctype html>
@@ -126,16 +122,11 @@ def book():
         print("[SENDGRID] 教練信狀態：", resp.status_code)
     except Exception as e:
         print("[SENDGRID] 教練信寄送失敗：", e)
-        try:
-            print("[SENDGRID][ERROR] status:", e.status_code)
-        except Exception:
-            pass
-        try:
-            print("[SENDGRID][ERROR] body:", e.body)
-        except Exception:
-            print("[SENDGRID][ERROR] raw:", e)
+        try: print("[SENDGRID][ERROR] status:", e.status_code)
+        except Exception: pass
+        try: print("[SENDGRID][ERROR] body:", e.body)
+        except Exception: print("[SENDGRID][ERROR] raw:", e)
 
-    # --- 給學員 ---
     customer_html = f"""
     <!doctype html>
     <html lang="zh-Hant"><head><meta charset="utf-8"></head><body>
@@ -169,14 +160,10 @@ def book():
         print("[SENDGRID] 客戶信狀態：", resp2.status_code)
     except Exception as e:
         print("[SENDGRID] 客戶信寄送失敗：", e)
-        try:
-            print("[SENDGRID][ERROR] status:", e.status_code)
-        except Exception:
-            pass
-        try:
-            print("[SENDGRID][ERROR] body:", e.body)
-        except Exception:
-            print("[SENDGRID][ERROR] raw:", e)
+        try: print("[SENDGRID][ERROR] status:", e.status_code)
+        except Exception: pass
+        try: print("[SENDGRID][ERROR] body:", e.body)
+        except Exception: print("[SENDGRID][ERROR] raw:", e)
 
     return render_template('success.html', name=name)
 
