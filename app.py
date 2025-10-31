@@ -1,7 +1,10 @@
 from flask import Flask, render_template, request
 from flask_sqlalchemy import SQLAlchemy
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, Email, Content  # ← 加入 Content
+from sendgrid.helpers.mail import (
+    Mail, Email, Content, TrackingSettings,
+    ClickTracking, OpenTracking, SubscriptionTracking, Category
+)
 import os
 
 app = Flask(__name__)
@@ -43,9 +46,7 @@ PACKAGES = [
 ]
 COACHES = ["阿行教練"]
 
-COACH_EMAIL = {
-    "阿行教練": "comcomdive@gmail.com",
-}
+COACH_EMAIL = {"阿行教練": "comcomdive@gmail.com"}
 
 @app.route('/')
 def index():
@@ -79,120 +80,52 @@ def book():
     db.session.add(booking)
     db.session.commit()
 
-    # --- SendGrid 寄信 ---
     sg_api_key = os.environ.get('SENDGRID_API_KEY')
     if not sg_api_key:
         print("[SENDGRID] 沒有設定 API KEY，跳過寄信")
         return render_template('success.html', name=name)
 
     sg = SendGridAPIClient(sg_api_key)
-
-    # 必須與已驗證 Sender 完全一致
     from_email = Email('comcomdive@gmail.com', name='來來潛水工作室')
     reply_to = Email('comcomdive@gmail.com', name='阿行教練')
 
-    # --- 給教練 ---
+    # ---------- 教練信 ----------
     coach_to = COACH_EMAIL.get(coach, 'comcomdive@gmail.com')
     coach_html = f"""
-    <!doctype html>
-    <html lang="zh-Hant"><head><meta charset="utf-8"></head><body>
+    <html><body>
       <h3>潛水預約通知</h3>
       <p><b>姓名：</b>{name}</p>
       <p><b>電話：</b>{phone}</p>
-      <p><b>LINE ID：</b>{line_id}</p>
+      <p><b>LINE ID：</b>{line_id or '（未填）'}</p>
       <p><b>Email：</b>{email}</p>
       <p><b>教練：</b>{coach}</p>
       <p><b>日期：</b>{dive_date}</p>
       <p><b>時段：</b>{time_slot}</p>
       <p><b>方案：</b>{package}</p>
       <p><b>人數：</b>{divers_count}</p>
-      <p><b>是否租裝備：</b>{need_equipment}</p>
+      <p><b>租裝備：</b>{need_equipment}</p>
       <p><b>裝備項目：</b>{equipment_items if equipment_items else '無'}</p>
       <p><b>身高：</b>{height} cm　<b>體重：</b>{weight} kg　<b>鞋號：</b>{shoe_size}</p>
       <p><b>備註：</b>{notes or '（無）'}</p>
       <hr>
       <p style="font-size:12px;color:#666;">
-        來來潛水工作室｜新北市三重區重新路三段138號2樓<br>
-        若此郵件誤入垃圾信箱，請將 comcomdive@gmail.com 加入聯絡人。
+        來來潛水工作室｜新北市三重區重新路三段138號
       </p>
     </body></html>
     """
+
     try:
         coach_msg = Mail(
             from_email=from_email,
             to_emails=coach_to,
-            subject='來來潛水｜新預約通知',
+            subject=f"你的潛水預約新報名：{dive_date}（{time_slot}）",
             html_content=coach_html
         )
-        # 純文字版本（反垃圾加分）
-        coach_msg.add_content(Content("text/plain", f"""\
-潛水預約通知
+        coach_msg.add_content(Content("text/plain", f"""潛水預約通知
 姓名：{name}
 電話：{phone}
-LINE ID：{line_id}
-Email：{email}
-教練：{coach}
-日期：{dive_date}
-時段：{time_slot}
-方案：{package}
-人數：{divers_count}
-是否租裝備：{need_equipment}
-裝備項目：{equipment_items if equipment_items else '無'}
-身高：{height} cm  體重：{weight} kg  鞋號：{shoe_size}
-備註：{notes or '（無）'}
-
-來來潛水工作室｜台北市中正區重慶南路三段138號
-若此郵件誤入垃圾信箱，請將 comcomdive@gmail.com 加入聯絡人。
-"""))
-        coach_msg.reply_to = reply_to
-        resp = sg.send(coach_msg)
-        print("[SENDGRID] 教練信狀態：", resp.status_code)
-    except Exception as e:
-        print("[SENDGRID] 教練信寄送失敗：", e)
-        try: print("[SENDGRID][ERROR] status:", e.status_code)
-        except Exception: pass
-        try: print("[SENDGRID][ERROR] body:", e.body)
-        except Exception: print("[SENDGRID][ERROR] raw:", e)
-
-    # --- 給學員 ---
-    customer_html = f"""
-    <!doctype html>
-    <html lang="zh-Hant"><head><meta charset="utf-8"></head><body>
-      <h2>感謝你的預約！</h2>
-      <p>我們已收到你的潛水預約，以下是你的報名資訊：</p>
-      <ul>
-        <li><b>姓名：</b>{name}</li>
-        <li><b>LINE ID：</b>{line_id or '（未填）'}</li>
-        <li><b>教練：</b>{coach}</li>
-        <li><b>日期：</b>{dive_date}</li>
-        <li><b>時段：</b>{time_slot}</li>
-        <li><b>方案：</b>{package}</li>
-        <li><b>人數：</b>{divers_count}</li>
-        <li><b>租裝備：</b>{need_equipment}</li>
-        <li><b>裝備項目：</b>{equipment_items if equipment_items else '無'}</li>
-        <li><b>身高：</b>{height} cm　<b>體重：</b>{weight} kg　<b>鞋號：</b>{shoe_size}</li>
-      </ul>
-      <p>若需更改或取消，直接回覆此信件與我們聯繫。</p>
-      <hr>
-      <p style="font-size:12px;color:#666;">
-        來來潛水工作室｜新北市三重區重新路三段138號2樓<br>
-        若此郵件誤入垃圾信箱，請將 comcomdive@gmail.com 加入聯絡人。
-      </p>
-    </body></html>
-    """
-    try:
-        customer_msg = Mail(
-            from_email=from_email,
-            to_emails=email,
-            subject='來來潛水｜預約成功通知',
-            html_content=customer_html
-        )
-        # 純文字版本（反垃圾加分）
-        customer_msg.add_content(Content("text/plain", f"""\
-感謝你的預約！
-我們已收到你的潛水報名資訊：
-姓名：{name}
 LINE ID：{line_id or '（未填）'}
+Email：{email}
 教練：{coach}
 日期：{dive_date}
 時段：{time_slot}
@@ -200,21 +133,74 @@ LINE ID：{line_id or '（未填）'}
 人數：{divers_count}
 租裝備：{need_equipment}
 裝備項目：{equipment_items if equipment_items else '無'}
-身高：{height} cm  體重：{weight} kg  鞋號：{shoe_size}
+身高：{height} cm 體重：{weight} kg 鞋號：{shoe_size}
+備註：{notes or '（無）'}
+"""))
+        coach_msg.reply_to = reply_to
 
-如需更改或取消，直接回覆此信件與我們聯繫。
-來來潛水工作室｜新北市三重區重新路三段138號2樓
-若此郵件誤入垃圾信箱，請將 comcomdive@gmail.com 加入聯絡人。
+        # 關閉追蹤 + 設為交易型郵件
+        coach_msg.category = Category("booking-transactional")
+        ts = TrackingSettings()
+        ts.click_tracking = ClickTracking(False, False)
+        ts.open_tracking = OpenTracking(False)
+        ts.subscription_tracking = SubscriptionTracking(False)
+        coach_msg.tracking_settings = ts
+
+        resp = sg.send(coach_msg)
+        print("[SENDGRID] 教練信狀態：", resp.status_code)
+    except Exception as e:
+        print("[SENDGRID] 教練信寄送失敗：", e)
+
+    # ---------- 學員信 ----------
+    customer_html = f"""
+    <html><body>
+      <h3>預約已建立</h3>
+      <p>我們已收到你的潛水報名，以下是你的預約資訊：</p>
+      <ul>
+        <li>教練：{coach}</li>
+        <li>日期：{dive_date}</li>
+        <li>時段：{time_slot}</li>
+        <li>方案：{package}</li>
+        <li>人數：{divers_count}</li>
+        <li>租裝備：{need_equipment}</li>
+      </ul>
+      <p>若需更改或取消，請直接回覆此信件與我們聯繫。</p>
+      <hr>
+      <p style="font-size:12px;color:#666;">
+        來來潛水工作室｜新北市三重區重新路三段138號
+      </p>
+    </body></html>
+    """
+
+    try:
+        customer_msg = Mail(
+            from_email=from_email,
+            to_emails=email,
+            subject=f"你的潛水預約已建立：{dive_date}（{time_slot}）",
+            html_content=customer_html
+        )
+        customer_msg.add_content(Content("text/plain", f"""預約已建立
+教練：{coach}
+日期：{dive_date}
+時段：{time_slot}
+方案：{package}
+人數：{divers_count}
+租裝備：{need_equipment}
 """))
         customer_msg.reply_to = reply_to
+
+        # 關閉追蹤 + 設為交易型郵件
+        customer_msg.category = Category("booking-transactional")
+        ts2 = TrackingSettings()
+        ts2.click_tracking = ClickTracking(False, False)
+        ts2.open_tracking = OpenTracking(False)
+        ts2.subscription_tracking = SubscriptionTracking(False)
+        customer_msg.tracking_settings = ts2
+
         resp2 = sg.send(customer_msg)
         print("[SENDGRID] 客戶信狀態：", resp2.status_code)
     except Exception as e:
         print("[SENDGRID] 客戶信寄送失敗：", e)
-        try: print("[SENDGRID][ERROR] status:", e.status_code)
-        except Exception: pass
-        try: print("[SENDGRID][ERROR] body:", e.body)
-        except Exception: print("[SENDGRID][ERROR] raw:", e)
 
     return render_template('success.html', name=name)
 
