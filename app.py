@@ -1,99 +1,96 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template_string, request
 from flask_sqlalchemy import SQLAlchemy
 import os
-import sendgrid
-from sendgrid.helpers.mail import Mail, Email, To, Content
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bookings.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+# 資料表
 class Booking(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50))
-    phone = db.Column(db.String(20))
-    email = db.Column(db.String(100))
+    name = db.Column(db.String(100))
     date = db.Column(db.String(20))
-    period = db.Column(db.String(20))
+    time_slot = db.Column(db.String(50))
     plan = db.Column(db.String(50))
-    people = db.Column(db.Integer)
-    note = db.Column(db.String(200))
+    divers_count = db.Column(db.Integer)
 
 with app.app_context():
     db.create_all()
 
-# 會把寄信結果印到 Render Logs
-def send_email(to_email, subject, content):
-    api_key = os.environ.get("SENDGRID_API_KEY")
-    from_addr = os.environ.get("FROM_EMAIL")
-    if not api_key or not from_addr:
-        print("[SENDGRID] Missing SENDGRID_API_KEY or FROM_EMAIL")
-        return False
-
-    try:
-        sg = sendgrid.SendGridAPIClient(api_key=api_key)
-        mail = Mail(
-            from_email=Email(from_addr),
-            to_emails=To(to_email),
-            subject=subject,
-            plain_text_content=Content("text/plain", content)
-        )
-        resp = sg.client.mail.send.post(request_body=mail.get())
-        print(f"[SENDGRID] to={to_email} status={resp.status_code}")
-        # 202 表示 SendGrid 接收成功
-        if resp.status_code == 202:
-            return True
-        else:
-            print(f"[SENDGRID] body={resp.body}, headers={resp.headers}")
-            return False
-    except Exception as e:
-        print(f"[SENDGRID] ERROR: {e}")
-        return False
-
+# 首頁表單
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template_string('''
+    <h1>潛水預約表單</h1>
+    <form action="/book" method="post">
+      姓名：<input type="text" name="name" required><br><br>
+      日期：<input type="date" name="date" required><br><br>
+      時段：
+      <select name="time_slot" required>
+        <option value="上午（08:00-12:00）">上午（08:00-12:00）</option>
+        <option value="下午（13:00-17:00）">下午（13:00-17:00）</option>
+      </select><br><br>
+      方案：
+      <select name="plan" required>
+        <option value="體驗潛水（Try Dive）">體驗潛水（Try Dive）</option>
+        <option value="Fun Dive（已持證）">Fun Dive（已持證）</option>
+      </select><br><br>
+      人數：<input type="number" name="divers_count" value="1" min="1" required><br><br>
+      <button type="submit">送出預約</button>
+    </form>
+    ''')
 
-@app.route('/submit', methods=['POST'])
-def submit():
+# 處理預約
+@app.route('/book', methods=['POST'])
+def book():
     name = request.form['name']
-    phone = request.form['phone']
-    email = request.form['email']
     date = request.form['date']
-    period = request.form['period']
+    time_slot = request.form['time_slot']
     plan = request.form['plan']
-    people = request.form['people']
-    note = request.form['note']
+    divers_count = int(request.form['divers_count'])
 
-    # 儲存資料
-    new_booking = Booking(
-        name=name, phone=phone, email=email,
-        date=date, period=period, plan=plan,
-        people=people, note=note
-    )
+    new_booking = Booking(name=name, date=date, time_slot=time_slot, plan=plan, divers_count=divers_count)
     db.session.add(new_booking)
     db.session.commit()
 
-    # 管理員通知
-    admin_email = os.environ.get("ADMIN_EMAIL")
-    admin_content = (
-        "📩 新潛水預約！\n\n"
-        f"姓名：{name}\n電話：{phone}\nEmail：{email}\n"
-        f"日期：{date}\n時段：{period}\n方案：{plan}\n人數：{people}\n備註：{note}\n"
-    )
-    send_email(admin_email, "來來潛水工作室 - 新預約通知", admin_content)
+    # ✅ 寄送通知信
+    try:
+        sg = SendGridAPIClient(os.environ.get('SENDGRID_API_KEY'))
+        msg = Mail(
+            from_email='comcomdive@gmail.com',
+            to_emails='comcomdive@gmail.com',
+            subject='📩 新預約通知',
+            html_content=f'''
+            <h3>新的預約來了：</h3>
+            <ul>
+                <li><b>姓名：</b>{name}</li>
+                <li><b>日期：</b>{date}</li>
+                <li><b>時段：</b>{time_slot}</li>
+                <li><b>方案：</b>{plan}</li>
+                <li><b>人數：</b>{divers_count}</li>
+            </ul>
+            ''')
+        response = sg.send(msg)
+        print(f"[SENDGRID] 寄信狀態：{response.status_code}")
+    except Exception as e:
+        print(f"[SENDGRID] 寄信失敗：{e}")
 
-    # 客人確認信
-    user_content = (
-        f"親愛的 {name} 您好，感謝您的預約！\n\n"
-        f"以下是您的潛水預約資訊：\n日期：{date}\n時段：{period}\n方案：{plan}\n人數：{people}\n\n"
-        "我們將盡快與您聯繫確認行程！\n\n— 來來潛水工作室"
-    )
-    send_email(email, "來來潛水工作室 - 預約確認信", user_content)
-
-    return redirect('/')
+    return render_template_string(f'''
+    <h2>✅ 預約成功！</h2>
+    <p>我們已收到你的預約，以下是資訊：</p>
+    <ul>
+      <li>日期：{date}</li>
+      <li>時段：{time_slot}</li>
+      <li>方案：{plan}</li>
+      <li>人數：{divers_count}</li>
+      <li>姓名：{name}</li>
+    </ul>
+    <a href="/">回首頁</a>
+    ''')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
-
-
