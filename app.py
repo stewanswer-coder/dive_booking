@@ -1,4 +1,4 @@
-from flask import Flask, render_template, render_template_string, request
+from flask import Flask, render_template, render_template_string, request, current_app
 from flask_sqlalchemy import SQLAlchemy
 import os, traceback, uuid, smtplib
 from email.mime.text import MIMEText
@@ -7,6 +7,7 @@ from email.mime.multipart import MIMEMultipart
 # === 初始化 Flask 與 DB ===
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bookings_v2.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # 1) 建議配置
 db = SQLAlchemy(app)
 
 # === 資料表定義 ===
@@ -21,12 +22,16 @@ class Booking(db.Model):
     time_slot = db.Column(db.String(50))
     package = db.Column(db.String(100))
     divers_count = db.Column(db.Integer)
-    need_equipment = db.Column(db.String(10))
-    equipment_items = db.Column(db.String(200))
+    need_equipment = db.Column(db.String(10))      # 'Y' or 'N'
+    equipment_items = db.Column(db.String(200))    # comma separated
     height = db.Column(db.String(10))
     weight = db.Column(db.String(10))
     shoe_size = db.Column(db.String(10))
     notes = db.Column(db.String(500))
+
+# 2) 模組載入時就建表（Render 用 gunicorn 不會跑 __main__）
+with app.app_context():
+    db.create_all()
 
 # === 固定選項（給首頁下拉用） ===
 TIME_SLOTS = ["上午 08:00", "下午 13:00"]
@@ -41,7 +46,7 @@ PACKAGES = [
 ]
 COACHES = ["阿行教練"]
 
-# === 郵件設定 ===
+# === 郵件設定（只用 Gmail App Password） ===
 GMAIL_USER = os.getenv("GMAIL_USER")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 COACH_EMAIL = {
@@ -50,8 +55,13 @@ COACH_EMAIL = {
 }
 
 def send_email_via_gmail(to_email, subject, html_content, text_content, reply_to=None):
-    """寄送 email via Gmail SMTP"""
+    """寄送 email via Gmail SMTP（SSL 465）。缺 env 會安靜跳過，不影響頁面。"""
     try:
+        # 3) 缺少環境變數時直接略過，不讓流程中斷
+        if not GMAIL_USER or not GMAIL_APP_PASSWORD:
+            print("[MAIL WARN] 缺少 GMAIL_USER 或 GMAIL_APP_PASSWORD，跳過寄信。")
+            return
+
         msg = MIMEMultipart("alternative")
         msg["From"] = GMAIL_USER
         msg["To"] = to_email
@@ -71,6 +81,16 @@ def send_email_via_gmail(to_email, subject, html_content, text_content, reply_to
         print(f"[MAIL ERROR] 無法寄給 {to_email}：{e}")
         traceback.print_exc()
 
+# === 首頁 ===
+@app.route("/")
+def index():
+    return render_template(
+        "index.html",
+        time_slots=TIME_SLOTS,
+        packages=PACKAGES,
+        coaches=COACHES,
+    )
+
 # === 預約表單提交 ===
 @app.route("/book", methods=["POST"])
 def book():
@@ -89,9 +109,13 @@ def book():
         dive_date = request.form.get("dive_date", "").strip()
         time_slot = request.form.get("time_slot", "").strip()
         package = request.form.get("package", "").strip()
-        divers_count = request.form.get("divers_count", "1").strip()
-        divers_count = int(divers_count) if divers_count.isdigit() else 1
-        need_equipment = request.form.get("need_equipment", "N").strip()
+        divers_count_raw = request.form.get("divers_count", "1").strip()
+        divers_count = int(divers_count_raw) if str(divers_count_raw).isdigit() else 1
+
+        # 4) 正規化 checkbox 值：Y/N
+        need_equipment_raw = request.form.get("need_equipment", "").strip().lower()
+        need_equipment = 'Y' if need_equipment_raw in ('on', 'y', 'yes', 'true', '1') else 'N'
+
         equipment_items = ", ".join(request.form.getlist("equipment_items"))
         height = request.form.get("height", "").strip()
         weight = request.form.get("weight", "").strip()
@@ -109,10 +133,21 @@ def book():
             )
             db.session.add(booking)
             db.session.commit()
+            db_ok = True
         except Exception:
             print("[DB] 寫入失敗：")
             traceback.print_exc()
             db.session.rollback()
+            db_ok = False
+
+        # 5) DB 失敗 → 友善錯誤頁（不噴 500）
+        if not db_ok:
+            return render_template_string("""
+                <!doctype html><meta charset="utf-8">
+                <h2>系統忙線中</h2>
+                <p>預約建立失敗，請稍後再試或直接私訊教練。</p>
+                <a href="/">回首頁</a>
+            """), 200
 
         # ---- 寄信階段（失敗不會中斷流程）----
         try:
@@ -153,7 +188,12 @@ Email：{email}
 """
             send_email_via_gmail(coach_to, coach_subject, coach_html, coach_text, reply_to=reply_to)
 
-            # 回信給客戶
+            # 6) 可選：自己收一封副本（若設了 ADMIN_EMAIL）
+            admin_bcc = os.getenv("ADMIN_EMAIL")
+            if admin_bcc and admin_bcc != coach_to:
+                send_email_via_gmail(admin_bcc, f"[副本] {coach_subject}", coach_html, coach_text, reply_to=reply_to)
+
+            # 客戶確認信
             customer_subject = f"你的潛水預約已建立：{dive_date}（{time_slot}）"
             customer_html = f"""
             <html><body>
@@ -186,7 +226,7 @@ LINE ID：{line_id or '（未填）'}"""
                        <h2>預約已完成 ✅</h2>
                        <p>{name}，我們已收到你的預約，稍後會以 Email 與你聯絡。</p>
                        <a href="/">回首頁</a>"""
-            return render_template_string(html)
+            return render_template_string(html), 200
 
     except Exception:
         print(f"[ERROR #{error_id}] 預約流程中斷")
@@ -196,20 +236,8 @@ LINE ID：{line_id or '（未填）'}"""
         <h2>系統忙線中</h2>
         <p>預約送出時遇到錯誤（代碼 {error_id}）。請稍後重試。</p>
         <a href="/">回首頁</a>
-        """)
+        """), 200
 
-# === 首頁（把固定選項傳給模板） ===
-@app.route("/")
-def index():
-    return render_template(
-        "index.html",
-        time_slots=TIME_SLOTS,
-        packages=PACKAGES,
-        coaches=COACHES,
-    )
-
-# === 啟動伺服器 ===
+# === 啟動伺服器（本地測試用；Render 會用 gunicorn 啟動） ===
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
