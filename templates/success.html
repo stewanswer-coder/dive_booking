@@ -1,21 +1,9 @@
 <!doctype html>
 <html lang="zh-Hant">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>預約完成</title>
-  <style>
-    body { font-family: Arial, sans-serif; text-align:center; padding-top:60px; }
-    h1 { color: #0077cc; }
-    p { font-size: 18px; }
-    a { text-decoration:none; color:white; background:#0077cc; padding:8px 16px; border-radius:5px; }
-  </style>
-</head>
+<head><meta charset="utf-8"><title>預約成功</title></head>
 <body>
-  <h1>✅ 預約完成！</h1>
-  <p>感謝 <b>{{ name }}</b> 的預約，我們已寄出確認信至您的 Email。</p>
-  <p>教練會盡快與您聯繫，祝您潛水愉快！</p>
-  <br>
-  <a href="/">回到首頁</a>
+  <h1>預約成功 ✅</h1>
+  <p>{{ name }}，我們已收到您的預約，會再以 Email 與您確認。</p>
+  <a href="{{ url_for('index') }}">回首頁</a>
 </body>
 </html>
